@@ -16,7 +16,6 @@ tensorlayer==2.0.0
 
 """
 
-
 import time
 import gym
 import numpy as np
@@ -24,14 +23,11 @@ import numpy as np
 # FrozenLake-v0是一个4*4的网络格子，每个格子可以是起始块，目标块、冻结块或者危险块。
 # 我们的目标是让智能体学习如何从开始块如何行动到目标块上，而不是移动到危险块上。
 # 智能体可以选择向上、向下、向左或者向右移动，同时游戏中还有可能吹来一阵风，将智能体吹到任意的方块上。
-env = gym.make('FrozenLake-v1',render_mode="human")
+env = gym.make('FrozenLake-v1', render_mode="human")
 
 # 设置是否渲染，展示游戏画面。
 render = False
 running_reward = None
-
-
-
 
 ##================= Implement Q-Table learning algorithm =====================##
 
