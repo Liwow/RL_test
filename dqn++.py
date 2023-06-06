@@ -8,6 +8,28 @@ import rl_utils
 from tqdm import tqdm
 
 
+# 使用Pendulum环境，state[正弦值，余弦值，角速度],action 为力矩，下面的代码将连续的动作空间离散为 11 个动作
+# 倒立摆向上保持直立不动时奖励为 0，
+# 倒立摆在其他位置时奖励为负数。环境本身没有终止状态，运行 200 步后游戏自动结束。
+
+# include DQN DoubleDQN DuelingDQN
+
+class VAnet(torch.nn.Module):
+    ''' 只有一层隐藏层的A网络和V网络 '''
+
+    def __init__(self, state_dim, hidden_dim, action_dim):
+        super(VAnet, self).__init__()
+        self.fc1 = torch.nn.Linear(state_dim, hidden_dim)  # 共享网络部分
+        self.fc_A = torch.nn.Linear(hidden_dim, action_dim)
+        self.fc_V = torch.nn.Linear(hidden_dim, 1)
+
+    def forward(self, x):
+        A = self.fc_A(F.relu(self.fc1(x)))
+        V = self.fc_V(F.relu(self.fc1(x)))
+        Q = V + A - A.mean(1).view(-1, 1)  # Q值由V值和A值计算得到
+        return Q
+
+
 class Qnet(torch.nn.Module):
     ''' 只有一层隐藏层的Q网络 '''
 
@@ -24,7 +46,7 @@ class Qnet(torch.nn.Module):
 
 
 class DQN:
-    ''' DQN算法,包括Double DQN '''
+    """ DQN算法,包括Double DQN、Dueling DQN """
 
     def __init__(self,
                  state_dim,
@@ -37,9 +59,16 @@ class DQN:
                  device,
                  dqn_type='VanillaDQN'):
         self.action_dim = action_dim
-        self.q_net = Qnet(state_dim, hidden_dim, self.action_dim).to(device)
-        self.target_q_net = Qnet(state_dim, hidden_dim,
-                                 self.action_dim).to(device)
+        if dqn_type == 'DuelingDQN':  # Dueling DQN采取不一样的网络框架
+            self.q_net = VAnet(state_dim, hidden_dim,
+                               self.action_dim).to(device)
+            self.target_q_net = VAnet(state_dim, hidden_dim,
+                                      self.action_dim).to(device)
+        else:  # dqn ddqn
+            self.q_net = Qnet(state_dim, hidden_dim,
+                              self.action_dim).to(device)
+            self.target_q_net = Qnet(state_dim, hidden_dim,
+                                     self.action_dim).to(device)
         self.optimizer = torch.optim.Adam(self.q_net.parameters(),
                                           lr=learning_rate)
         self.gamma = gamma
@@ -54,11 +83,15 @@ class DQN:
             action = np.random.randint(self.action_dim)
         else:
             state = torch.tensor([state], dtype=torch.float).to(self.device)
+            s = self.q_net(state)
+            s = s.argmax()
             action = self.q_net(state).argmax().item()
         return action
 
     def max_q_value(self, state):
         state = torch.tensor([state], dtype=torch.float).to(self.device)
+        s = self.q_net(state)
+        s = s.max()
         return self.q_net(state).max().item()
 
     def update(self, transition_dict):
@@ -113,9 +146,7 @@ action_dim = 11  # 将连续动作分成11个离散动作
 def dis_to_con(discrete_action, env, action_dim):  # 离散动作转回连续的函数
     action_lowbound = env.action_space.low[0]  # 连续动作的最小值
     action_upbound = env.action_space.high[0]  # 连续动作的最大值
-    return action_lowbound + (discrete_action /
-                              (action_dim - 1)) * (action_upbound -
-                                                   action_lowbound)
+    return action_lowbound + (discrete_action / (action_dim - 1)) * (action_upbound - action_lowbound)
 
 
 def train_DQN(agent, env, num_episodes, replay_buffer, minimal_size,
@@ -130,14 +161,14 @@ def train_DQN(agent, env, num_episodes, replay_buffer, minimal_size,
                 episode_return = 0
                 state = env.reset()[0]
                 done = False
-                while not done:
+                n = 0
+                while not done and n < 200:
                     action = agent.take_action(state)
-                    max_q_value = agent.max_q_value(
-                        state) * 0.005 + max_q_value * 0.995  # 平滑处理
+                    max_q_value = agent.max_q_value(state) * 0.01 + max_q_value * 0.99  # 平滑处理
                     max_q_value_list.append(max_q_value)  # 保存每个状态的最大Q值
                     action_continuous = dis_to_con(action, env,
                                                    agent.action_dim)
-                    next_state, reward, done, _, _ = env.step([action_continuous])
+                    next_state, reward, done, truncated, info = env.step([action_continuous])
                     replay_buffer.add(state, action, reward, next_state, done)
                     state = next_state
                     episode_return += reward
@@ -152,6 +183,7 @@ def train_DQN(agent, env, num_episodes, replay_buffer, minimal_size,
                             'dones': b_d
                         }
                         agent.update(transition_dict)
+                    n = n + 1
                 return_list.append(episode_return)
                 if (i_episode + 1) % 10 == 0:
                     pbar.set_postfix({
@@ -169,7 +201,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 replay_buffer = rl_utils.ReplayBuffer(buffer_size)
 agent = DQN(state_dim, hidden_dim, action_dim, lr, gamma, epsilon,
-            target_update, device)
+            target_update, device, dqn_type='DuelingDQN')
 return_list, max_q_value_list = train_DQN(agent, env, num_episodes,
                                           replay_buffer, minimal_size,
                                           batch_size)

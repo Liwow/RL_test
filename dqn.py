@@ -111,7 +111,7 @@ def plot(max_q_value_list, return_list, env_name):
 
 
 def main():
-    env = gym.make('CartPole-v1')
+    env = gym.make('CartPole-v0')
     q = Qnet()
     q_target = Qnet()
     q_target.load_state_dict(q.state_dict())
