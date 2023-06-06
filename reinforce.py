@@ -7,6 +7,8 @@ from tqdm import tqdm
 import rl_utils
 
 
+# 使用cartpole环境,state[角速度，速度，方向，角度]，action[0，1][left,right]
+
 class PolicyNet(torch.nn.Module):
     def __init__(self, state_dim, hidden_dim, action_dim):
         super(PolicyNet, self).__init__()

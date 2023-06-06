@@ -11,6 +11,8 @@ import torch.optim as optim
 # Hyperparameters
 import rl_utils
 
+# 抛弃版本
+
 learning_rate = 0.0005
 gamma = 0.98
 buffer_limit = 50000
