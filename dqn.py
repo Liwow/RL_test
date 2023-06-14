@@ -69,7 +69,6 @@ class Qnet(nn.Module):
 
 
 def train(q, q_target, memory, optimizer, max_q_value_list):
-
     for i in range(10):
         s, a, r, s_prime, done_mask = memory.sample(batch_size)
 
@@ -126,7 +125,7 @@ def main():
     max_q_value_list = []
     optimizer = optim.Adam(q.parameters(), lr=learning_rate)
 
-    for n_epi in range(500):
+    for n_epi in range(10000):
         epsilon = max(0.01, 0.08 - 0.01 * (n_epi / 200))  # Linear annealing from 8% to 1%
         s, _ = env.reset()
         done = False
@@ -152,7 +151,7 @@ def main():
             print("n_episode :{}, score : {:.1f}, n_buffer : {}, eps : {:.1f}%".format(
                 n_epi, score / print_interval, memory.size(), epsilon * 100))
             score = 0.0
-    plot(max_q_value_list, rewards, 'CartPole-v1')
+    # plot(max_q_value_list, rewards, 'CartPole-v1')
     env.close()
 
 
